@@ -444,14 +444,37 @@ function tryDecodeOB(input) {
     for (let i = 0; i < bin.length; i++) raw[i] = bin.charCodeAt(i);
   } catch (_) { return null; }
 
+  let best = null;
+  let bestScore = -Infinity;
+
   for (let key = 0; key <= 127; key++) {
     const xored   = raw.map(b => b ^ key);
     const decoded = new TextDecoder('utf-8', { fatal: false }).decode(xored);
-    if (decoded.includes('~~~~') && decoded.includes('|')) {
-      return { decoded, key };
+    if (!decoded.includes('~~~~') || !decoded.includes('|')) continue;
+
+    // Count ~~~~ command separators — genuine OB responses have many (8-15+).
+    let separators = 0;
+    let pos = 0;
+    while ((pos = decoded.indexOf('~~~~', pos)) !== -1) { separators++; pos += 4; }
+
+    // Penalise non-printable / control characters in the first 2 KB —
+    // valid OB plaintext is pure ASCII; a wrong key produces binary junk.
+    let nonPrint = 0;
+    const sample = Math.min(decoded.length, 2048);
+    for (let i = 0; i < sample; i++) {
+      const c = decoded.charCodeAt(i);
+      if (c < 32 && c !== 9 && c !== 10 && c !== 13) nonPrint++;
+    }
+
+    // Weight separators heavily; every junk byte costs a fraction of a separator.
+    const score = separators * 200 - nonPrint;
+    if (score > bestScore) {
+      bestScore = score;
+      best = { decoded, key };
     }
   }
-  return null;
+
+  return best;
 }
 
 // Role pattern matchers (from automap.go)
