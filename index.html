@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PerimeterX Payload Decode</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0b0c1e;
+  --bg-hdr:      #0d0f27;
+  --bg-in:       #08091a;
+  --border:      #1d2448;
+  --text:        #c9d3e8;
+  --label:       #8892a8;
+  --accent:      #4f7ef8;
+  --accent-h:    #6b94ff;
+  --error:       #ff7c8e;
+  --jk:          #7ec8e3;
+  --js:          #98d982;
+  --jnum:        #f0b05a;
+  --jb:          #cf9fff;
+  --jn:          #ff9eb5;
+  --mono: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+header {
+  background: var(--bg-hdr);
+  border-bottom: 1px solid var(--border);
+  padding: 0 18px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.hdr-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: .01em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.hdr-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Form controls ───────────────────────────────────── */
+.mode-sel {
+  background: #151930;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 26px 5px 10px;
+  font-size: .82rem;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 11 7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%238892a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color .15s;
+}
+.mode-sel:hover, .mode-sel:focus { border-color: var(--accent); }
+
+.fg { display: flex; align-items: center; gap: 6px; }
+
+.fl {
+  color: var(--label);
+  font-size: .76rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.fi {
+  background: #10122a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: .76rem;
+  font-family: var(--mono);
+  width: 185px;
+  outline: none;
+  transition: border-color .15s;
+}
+.fi:focus { border-color: var(--accent); }
+.fi::placeholder { color: #2c3560; }
+.fi.narrow { width: 130px; }
+
+.tg { display: flex; align-items: center; gap: 6px; }
+
+.tb {
+  padding: 4px 11px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  font-size: .76rem;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  color: var(--label);
+  transition: all .15s;
+  outline: none;
+}
+.tb:hover { border-color: var(--accent); color: var(--text); }
+.tb.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.share-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 13px;
+  font-size: .8rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  outline: none;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.share-btn:hover { background: var(--accent-h); }
+
+/* ── Main layout ─────────────────────────────────────── */
+main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.pane + .pane { border-left: 1px solid var(--border); }
+
+.pane-lbl {
+  padding: 5px 14px;
+  font-size: .65rem;
+  color: #48547a;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  background: var(--bg-hdr);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+#input-ta {
+  flex: 1;
+  background: var(--bg-in);
+  color: #a8b8d0;
+  border: none;
+  resize: none;
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: .76rem;
+  line-height: 1.65;
+  outline: none;
+  overflow: auto;
+  word-break: break-all;
+  transition: background .1s;
+}
+#input-ta:focus { background: #090b1e; color: var(--text); }
+#input-ta::placeholder { color: #252b50; }
+
+#output-area {
+  flex: 1;
+  background: var(--bg-in);
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: .76rem;
+  line-height: 1.65;
+  overflow: auto;
+  white-space: pre;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* ── JSON colors ─────────────────────────────────────── */
+.jk   { color: var(--jk); }
+.js   { color: var(--js); }
+.jnum { color: var(--jnum); }
+.jb   { color: var(--jb); }
+.jn   { color: var(--jn); }
+.jerr { color: var(--error); font-style: italic; }
+
+/* ── Scrollbars ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #252d55; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #344070; }
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 860px) {
+  main { flex-direction: column; }
+  .pane + .pane { border-left: none; border-top: 1px solid var(--border); }
+  .hdr-title { display: none; }
+  .fi { width: 120px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <!-- Left controls -->
+  <select class="mode-sel" id="mode">
+    <option value="decode">Decode</option>
+    <option value="deob">De-OB</option>
+  </select>
+
+  <div class="fg" id="uuid-grp">
+    <span class="fl">uuid</span>
+    <input class="fi" id="uuid-in" type="text" placeholder="optional" spellcheck="false" autocomplete="off">
+  </div>
+
+  <div class="fg" id="sts-grp">
+    <span class="fl">sts</span>
+    <input class="fi narrow" id="sts-in" type="text" placeholder="optional" spellcheck="false" autocomplete="off">
+  </div>
+
+  <span class="hdr-title">PerimeterX Payload Decode</span>
+
+  <!-- Right controls -->
+  <div class="hdr-right">
+    <div class="tg">
+      <span class="fl">Order Keys</span>
+      <button class="tb on"  id="ord-yes" onclick="setOrder(true)">Yes</button>
+      <button class="tb"     id="ord-no"  onclick="setOrder(false)">No</button>
+    </div>
+
+    <button class="share-btn" id="share-btn" onclick="doShare()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+        <polyline points="15 3 21 3 21 9"/>
+        <line x1="10" y1="14" x2="21" y2="3"/>
+      </svg>
+      Share
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="pane">
+    <div class="pane-lbl">Input — payload / ob value</div>
+    <textarea id="input-ta" spellcheck="false"
+      placeholder="Paste sensor payload (Decode mode) or ob base64 value (De-OB mode) here…"></textarea>
+  </div>
+
+  <div class="pane">
+    <div class="pane-lbl">Output — decoded</div>
+    <div id="output-area" aria-label="Decoded output" aria-readonly="true"></div>
+  </div>
+</main>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════
+//  Utility
+// ════════════════════════════════════════════════════
+
+function xorStr(s, key) {
+  let o = '';
+  for (let i = 0; i < s.length; i++) o += String.fromCharCode(s.charCodeAt(i) ^ key);
+  return o;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Deep-sort all object keys alphabetically (recursively). */
+function deepSort(v) {
+  if (Array.isArray(v)) return v.map(deepSort);
+  if (v !== null && typeof v === 'object') {
+    const s = {};
+    Object.keys(v).sort().forEach(k => { s[k] = deepSort(v[k]); });
+    return s;
+  }
+  return v;
+}
+
+/** JSON syntax highlighter — works on a JSON string. */
+function syntaxHL(json) {
+  const safe = json
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return safe.replace(
+    /("(?:\\.|[^"\\])*")\s*:|("(?:\\.|[^"\\])*")|\b(true|false)\b|\b(null)\b|(-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)/g,
+    (m, key, str, bool, nil, num) => {
+      if (key  !== undefined) return `<span class="jk">${key}</span>:`;
+      if (str  !== undefined) return `<span class="js">${str}</span>`;
+      if (bool !== undefined) return `<span class="jb">${bool}</span>`;
+      if (nil  !== undefined) return `<span class="jn">${nil}</span>`;
+      if (num  !== undefined) return `<span class="jnum">${num}</span>`;
+      return m;
+    }
+  );
+}
+
+// ════════════════════════════════════════════════════
+//  Sensor payload decode  (mode = "decode")
+//
+//  Algorithm (from sensor.go):
+//    1. shuffleKey = XOR( base64(sts), 10 )
+//    2. r          = XOR( base64(uuid), 10 )
+//    3. Compute insertion positions from r × shuffleKey
+//    4. Remove the interleaved shuffleKey chars from encoded
+//    5. base64-decode the remainder
+//    6. XOR every byte with 50  →  raw JSON
+// ════════════════════════════════════════════════════
+
+function computeIndices(keyStr, payloadLen, uuid) {
+  const r    = xorStr(btoa(uuid || ''), 10);
+  const rLen = r.length;
+  if (rLen < 2) return [];
+
+  // Pass 1 — maximum product (for linear mapping when pos ≥ payloadLen)
+  let maxVal = -1;
+  for (let i = 0; i < keyStr.length; i++) {
+    const row = Math.floor(i / rLen) + 1;
+    const col = i % rLen;
+    if (row >= rLen) continue;
+    const p = r.charCodeAt(col) * r.charCodeAt(row);
+    if (p > maxVal) maxVal = p;
+  }
+
+  // Pass 2 — actual positions with collision resolution
+  const positions = [];
+  for (let i = 0; i < keyStr.length; i++) {
+    const row = Math.floor(i / rLen) + 1;
+    const col = i % rLen;
+    if (row >= rLen) continue;
+    let pos = r.charCodeAt(col) * r.charCodeAt(row);
+    if (pos >= payloadLen && maxVal > 0) {
+      pos = Math.floor((pos / maxVal) * (payloadLen - 1));
+    }
+    while (positions.includes(pos)) pos++;
+    positions.push(pos);
+  }
+
+  return [...positions].sort((a, b) => a - b);
+}
+
+function decodeSensor(encoded, uuid, sts) {
+  if (!sts) sts = '1604064986000';
+
+  const shuffleKey = xorStr(btoa(sts), 10);
+  const keyLen     = shuffleKey.length;
+
+  const indices      = computeIndices(shuffleKey, encoded.length - keyLen, uuid || '');
+  const toRemove     = indices.map(idx => idx - 1).sort((a, b) => b - a);
+
+  const chars = [...encoded];
+  for (const pos of toRemove) {
+    if (pos >= 0 && pos < chars.length) chars.splice(pos, 1);
+  }
+  const b64 = chars.join('');
+
+  // Base64 decode (with lenient fallback)
+  let binStr;
+  try {
+    const rem = b64.length % 4;
+    binStr = atob(rem ? b64 + '='.repeat(4 - rem) : b64);
+  } catch (_) {
+    const clean  = b64.replace(/[^A-Za-z0-9+/=]/g, '');
+    const padded = clean.length % 4 ? clean + '='.repeat(4 - clean.length % 4) : clean;
+    binStr = atob(padded);
+  }
+
+  // XOR with 50, then UTF-8 decode
+  const bytes = new Uint8Array(binStr.length);
+  for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i) ^ 50;
+  return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+}
+
+// ════════════════════════════════════════════════════
+//  OB response decode  (mode = "deob")
+//
+//  Algorithm (from ob.go):
+//    wire = base64( XOR(plaintext, key) )
+//    → XOR key is derived from the PX tag, but we
+//      auto-detect it by trying keys 0-127 and picking
+//      the one whose plaintext contains "~~~~".
+//
+//  Commands are separated by "~~~~", fields by "|".
+// ════════════════════════════════════════════════════
+
+function tryDecodeOB(input) {
+  let b64 = input.trim();
+  const rem = b64.length % 4;
+  if (rem) b64 += '='.repeat(4 - rem);
+
+  let raw;
+  try {
+    const bin = atob(b64);
+    raw = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) raw[i] = bin.charCodeAt(i);
+  } catch (_) { return null; }
+
+  for (let key = 0; key <= 127; key++) {
+    const xored   = raw.map(b => b ^ key);
+    const decoded = new TextDecoder('utf-8', { fatal: false }).decode(xored);
+    if (decoded.includes('~~~~') && decoded.includes('|')) {
+      return { decoded, key };
+    }
+  }
+  return null;
+}
+
+// Role pattern matchers (from automap.go)
+const UUID_RE    = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const HEX64_RE   = /^[0-9a-f]{64}$/;
+const HEXLONG_RE = /^[0-9a-f]{50,66}$/;
+const DIG20_RE   = /^\d{18,22}$/;
+const DIG13_RE   = /^\d{12,14}$/;
+const DIGSM_RE   = /^\d{1,6}$/;
+const TOKEN_RE   = /^[a-z0-9]{15,25}$/;
+
+function identifyRole(values) {
+  if (!values || !values.length) return null;
+  const v = values[0];
+  if (values.length >= 3 && v.startsWith('_px'))                                        return 'cookie';
+  if (UUID_RE.test(v)) {
+    if (values.length >= 3 && (values[1] === '31536000' || values[1].includes('3153'))) return 'vid';
+    if (values.length === 2 && (values[1] === 'false' || values[1] === 'true'))         return 'cts';
+    return 'sid';
+  }
+  if (values.length >= 5 && HEX64_RE.test(values[4]))                                  return 'pow';
+  if (values.length >= 5 && HEXLONG_RE.test(values[1]) && HEXLONG_RE.test(values[2]))  return 'nonces';
+  if (values.length >= 4 && UUID_RE.test(values[1]))                                   return 'callback';
+  if (HEX64_RE.test(v))                                                                return 'cs';
+  if (DIG20_RE.test(v))                                                                return 'cts_num';
+  if (DIG13_RE.test(v))                                                                return 'timestamp';
+  if (values.length === 1 && (v === '0' || v === '-1'))                                return 'solve_result';
+  if (DIGSM_RE.test(v) && values.length === 1)                                         return 'cls';
+  if (values.length === 1 && TOKEN_RE.test(v))                                         return 'token';
+  if (values.length === 1 && v.includes('bsco:'))                                      return 'config';
+  if (v.length <= 3 && values.length === 1)                                            return 'cs_mode';
+  return null;
+}
+
+function parseOBCommands(decoded) {
+  const roleCounts = {};
+  const out = {};
+
+  for (const part of decoded.split('~~~~')) {
+    if (!part.includes('|')) continue;
+    const fields = part.split('|');
+    if (!fields[0]) continue;
+    const label  = fields[0];
+    const values = fields.slice(1);
+    const role   = identifyRole(values);
+
+    let key;
+    if (role) {
+      const n = roleCounts[role] || 0;
+      roleCounts[role] = n + 1;
+      key = n === 0 ? role : `${role}_${n + 1}`;
+    } else {
+      key = label;
+    }
+
+    if      (values.length === 0) out[key] = null;
+    else if (values.length === 1) out[key] = values[0];
+    else                          out[key] = values;
+  }
+
+  return out;
+}
+
+// ════════════════════════════════════════════════════
+//  UI state & rendering
+// ════════════════════════════════════════════════════
+
+let orderKeys = true;
+
+function setOrder(val) {
+  orderKeys = val;
+  document.getElementById('ord-yes').classList.toggle('on', val);
+  document.getElementById('ord-no').classList.toggle('on', !val);
+  updateOutput();
+}
+
+function updateOutput() {
+  const mode   = document.getElementById('mode').value;
+  const input  = document.getElementById('input-ta').value.trim();
+  const uuid   = document.getElementById('uuid-in').value.trim();
+  const sts    = document.getElementById('sts-in').value.trim();
+  const outEl  = document.getElementById('output-area');
+
+  if (!input) { outEl.innerHTML = ''; return; }
+
+  try {
+    let jsonStr;
+
+    if (mode === 'decode') {
+      // ── Sensor payload ──
+      const raw = decodeSensor(input, uuid, sts);
+      let parsed;
+      try   { parsed = JSON.parse(raw); }
+      catch (_) { parsed = raw; }
+
+      if (orderKeys && parsed !== null && typeof parsed === 'object') {
+        parsed = deepSort(parsed);
+      }
+      jsonStr = typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2);
+
+    } else {
+      // ── OB value ──
+      const result = tryDecodeOB(input);
+      if (!result) {
+        outEl.innerHTML =
+          '<span class="jerr">⚠ Could not decode — ensure the input is a valid base64 OB value.</span>';
+        return;
+      }
+      let cmds = parseOBCommands(result.decoded);
+      if (orderKeys) cmds = deepSort(cmds);
+      jsonStr = JSON.stringify(cmds, null, 2);
+    }
+
+    outEl.innerHTML = syntaxHL(jsonStr);
+  } catch (err) {
+    outEl.innerHTML = `<span class="jerr">⚠ ${escHtml(err.message)}</span>`;
+  }
+}
+
+// ── Mode switch ───────────────────────────────────────
+document.getElementById('mode').addEventListener('change', () => {
+  const isDecode = document.getElementById('mode').value === 'decode';
+  document.getElementById('uuid-grp').style.display = isDecode ? '' : 'none';
+  document.getElementById('sts-grp').style.display  = isDecode ? '' : 'none';
+  updateOutput();
+});
+
+// ── Live update ───────────────────────────────────────
+['input-ta', 'uuid-in', 'sts-in'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateOutput);
+});
+
+// ── Share ─────────────────────────────────────────────
+const SHARE_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+  <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+</svg> Share`;
+
+function doShare() {
+  const mode  = document.getElementById('mode').value;
+  const input = document.getElementById('input-ta').value;
+  const uuid  = document.getElementById('uuid-in').value;
+  const sts   = document.getElementById('sts-in').value;
+
+  const p = new URLSearchParams({ mode });
+  try { p.set('p', btoa(unescape(encodeURIComponent(input)))); }
+  catch (_) { p.set('p', btoa(input)); }
+  if (uuid) p.set('uuid', uuid);
+  if (sts)  p.set('sts', sts);
+
+  const url = `${location.origin}${location.pathname}?${p}`;
+  const btn = document.getElementById('share-btn');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => { btn.innerHTML = SHARE_ICON; }, 2000);
+    }).catch(() => { prompt('Copy this link:', url); });
+  } else {
+    prompt('Copy this link:', url);
+  }
+}
+
+// ── Load from URL params ──────────────────────────────
+(function init() {
+  const p = new URLSearchParams(location.search);
+  if (p.has('mode')) document.getElementById('mode').value = p.get('mode');
+  if (p.has('p')) {
+    try { document.getElementById('input-ta').value = decodeURIComponent(escape(atob(p.get('p')))); }
+    catch (_) { try { document.getElementById('input-ta').value = atob(p.get('p')); } catch (_2) {} }
+  }
+  if (p.has('uuid')) document.getElementById('uuid-in').value = p.get('uuid');
+  if (p.has('sts'))  document.getElementById('sts-in').value  = p.get('sts');
+
+  const isDecode = document.getElementById('mode').value === 'decode';
+  document.getElementById('uuid-grp').style.display = isDecode ? '' : 'none';
+  document.getElementById('sts-grp').style.display  = isDecode ? '' : 'none';
+
+  updateOutput();
+})();
+</script>
+</body>
+</html>
