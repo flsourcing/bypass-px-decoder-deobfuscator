@@ -302,13 +302,25 @@ function escHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-/** Deep-sort all object keys alphabetically (recursively). */
+/**
+ * Deep-sort object keys: primitive-valued keys first (alphabetically),
+ * then object/array-valued keys (alphabetically). This keeps summary
+ * fields like "t" above data objects like "d" while still sorting
+ * leaf-level keys alphabetically for easy scanning.
+ */
 function deepSort(v) {
   if (Array.isArray(v)) return v.map(deepSort);
   if (v !== null && typeof v === 'object') {
-    const s = {};
-    Object.keys(v).sort().forEach(k => { s[k] = deepSort(v[k]); });
-    return s;
+    const isLeaf = val => val === null || typeof val !== 'object';
+    const sorted = {};
+    Object.entries(v)
+      .sort(([ka, va], [kb, vb]) => {
+        const aLeaf = isLeaf(va), bLeaf = isLeaf(vb);
+        if (aLeaf !== bLeaf) return aLeaf ? -1 : 1;
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
+      })
+      .forEach(([k, val]) => { sorted[k] = deepSort(val); });
+    return sorted;
   }
   return v;
 }
