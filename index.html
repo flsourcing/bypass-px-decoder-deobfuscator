@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Payload Decode</title>
+<link rel="icon" type="image/gif" href="bypass_purple_square_gif.gif">
+<link rel="icon" type="image/png" href="Bypass%20static%20purple%20image.png">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -48,14 +50,27 @@ header {
   position: relative;
 }
 
-.hdr-title {
+.hdr-title-wrap {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.hdr-logo {
+  height: 28px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+}
+
+.hdr-title {
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: .01em;
-  pointer-events: none;
   white-space: nowrap;
 }
 
@@ -222,7 +237,7 @@ main {
 @media (max-width: 860px) {
   main { flex-direction: column; }
   .pane + .pane { border-left: none; border-top: 1px solid var(--border); }
-  .hdr-title { display: none; }
+  .hdr-title-wrap { display: none; }
   .fi { width: 120px; }
 }
 </style>
@@ -246,7 +261,10 @@ main {
     <input class="fi narrow" id="sts-in" type="text" placeholder="optional" spellcheck="false" autocomplete="off">
   </div>
 
-  <span class="hdr-title" id="hdr-title">Payload Decode</span>
+  <div class="hdr-title-wrap">
+    <img src="bypass_purple_square_gif.gif" alt="" class="hdr-logo">
+    <span class="hdr-title" id="hdr-title">Payload Decode</span>
+  </div>
 
   <!-- Right controls -->
   <div class="hdr-right">

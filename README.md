@@ -1,4 +1,4 @@
-# PerimeterX Payload Decode
+# Payload Decode
 
 A browser-based tool for decoding and de-obfuscating PerimeterX (HUMAN Security) traffic payloads — no server, no installs, runs entirely in your browser.
 
