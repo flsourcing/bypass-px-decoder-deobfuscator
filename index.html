@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PerimeterX Payload Decode</title>
+<title>Payload Decode</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -232,8 +232,8 @@ main {
 <header>
   <!-- Left controls -->
   <select class="mode-sel" id="mode">
-    <option value="decode">Decode</option>
-    <option value="deob">De-OB</option>
+    <option value="decode">Decoder</option>
+    <option value="deob">Deobfuscator</option>
   </select>
 
   <div class="fg" id="uuid-grp">
@@ -246,7 +246,7 @@ main {
     <input class="fi narrow" id="sts-in" type="text" placeholder="optional" spellcheck="false" autocomplete="off">
   </div>
 
-  <span class="hdr-title">PerimeterX Payload Decode</span>
+  <span class="hdr-title" id="hdr-title">Payload Decode</span>
 
   <!-- Right controls -->
   <div class="hdr-right">
@@ -272,7 +272,7 @@ main {
   <div class="pane">
     <div class="pane-lbl">Input — payload / ob value</div>
     <textarea id="input-ta" spellcheck="false"
-      placeholder="Paste sensor payload (Decode mode) or ob base64 value (De-OB mode) here…"></textarea>
+      placeholder="Paste sensor payload (Decoder) or ob base64 value (Deobfuscator) here…"></textarea>
   </div>
 
   <div class="pane">
@@ -421,6 +421,98 @@ function decodeSensor(encoded, uuid, sts) {
 }
 
 // ════════════════════════════════════════════════════
+//  Generic auto-detect decoders (Decoder mode fallback)
+//  Covers encodings commonly supported by base64decode.org-style tools:
+//  Base64, Base64 URL-safe, Hex, URL (percent) decode.
+// ════════════════════════════════════════════════════
+
+function isReasonableText(s) {
+  if (!s || s.length > 500000) return false;
+  const sample = s.slice(0, 2000);
+  let printable = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const c = sample.charCodeAt(i);
+    if (c >= 32 && c < 0xd800) printable++;
+    else if (c >= 0xe000 && c <= 0xffff) printable++;
+  }
+  return printable / Math.max(1, sample.length) >= 0.85;
+}
+
+function tryBase64Standard(input) {
+  let b64 = input.trim().replace(/\s+/g, '');
+  const rem = b64.length % 4;
+  if (rem) b64 += '='.repeat(4 - rem);
+  try {
+    const bin = atob(b64.replace(/[^A-Za-z0-9+/=]/g, ''));
+    const decoded = new TextDecoder('utf-8', { fatal: false }).decode(
+      new Uint8Array([...bin].map(c => c.charCodeAt(0)))
+    );
+    if (isReasonableText(decoded)) return { decoded, method: 'Base64' };
+  } catch (_) {}
+  return null;
+}
+
+function tryBase64UrlSafe(input) {
+  let b64 = input.trim().replace(/\s+/g, '');
+  b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+  const rem = b64.length % 4;
+  if (rem) b64 += '='.repeat(4 - rem);
+  try {
+    const bin = atob(b64.replace(/[^A-Za-z0-9+/=]/g, ''));
+    const decoded = new TextDecoder('utf-8', { fatal: false }).decode(
+      new Uint8Array([...bin].map(c => c.charCodeAt(0)))
+    );
+    if (isReasonableText(decoded)) return { decoded, method: 'Base64 URL-safe' };
+  } catch (_) {}
+  return null;
+}
+
+function tryHexDecode(input) {
+  const raw = input.trim().replace(/\s+/g, '');
+  if (!/^[0-9a-fA-F]+$/.test(raw) || raw.length % 2 !== 0) return null;
+  try {
+    const bytes = new Uint8Array(raw.length / 2);
+    for (let i = 0; i < bytes.length; i++)
+      bytes[i] = parseInt(raw.slice(i * 2, i * 2 + 2), 16);
+    const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    if (isReasonableText(decoded)) return { decoded, method: 'Hex' };
+  } catch (_) {}
+  return null;
+}
+
+function tryUrlDecode(input) {
+  try {
+    const decoded = decodeURIComponent(input.trim().replace(/\+/g, ' '));
+    if (decoded !== input && isReasonableText(decoded)) return { decoded, method: 'URL' };
+  } catch (_) {}
+  return null;
+}
+
+function tryHtmlEntityDecode(input) {
+  const div = document.createElement('div');
+  div.innerHTML = input.trim();
+  const decoded = div.textContent || div.innerText || '';
+  if (decoded !== input && isReasonableText(decoded)) return { decoded, method: 'HTML entities' };
+  return null;
+}
+
+/** Try generic decodings in order; returns { decoded, method } or null. */
+function tryAutoDecodeGeneric(input) {
+  const attempts = [
+    () => tryBase64Standard(input),
+    () => tryBase64UrlSafe(input),
+    () => tryHexDecode(input),
+    () => tryUrlDecode(input),
+    () => tryHtmlEntityDecode(input),
+  ];
+  for (const fn of attempts) {
+    const result = fn();
+    if (result) return result;
+  }
+  return null;
+}
+
+// ════════════════════════════════════════════════════
 //  OB response decode  (mode = "deob")
 //
 //  Algorithm (from ob.go):
@@ -564,16 +656,32 @@ function updateOutput() {
     let jsonStr;
 
     if (mode === 'decode') {
-      // ── Sensor payload ──
-      const raw = decodeSensor(input, uuid, sts);
+      // ── Sensor payload first ──
+      let raw = decodeSensor(input, uuid, sts);
       let parsed;
-      try   { parsed = JSON.parse(raw); }
-      catch (_) { parsed = raw; }
-
-      if (orderKeys && parsed !== null && typeof parsed === 'object') {
+      let usedMethod = 'Sensor payload';
+      try {
+        parsed = JSON.parse(raw);
+      } catch (_) {
+        parsed = null;
+      }
+      // If sensor decode did not yield valid JSON, try generic auto-detect (Base64, Hex, URL, etc.)
+      if (parsed === null || (typeof parsed === 'object' && Object.keys(parsed).length === 0)) {
+        const generic = tryAutoDecodeGeneric(input);
+        if (generic) {
+          raw = generic.decoded;
+          usedMethod = generic.method;
+          try { parsed = JSON.parse(raw); } catch (_) { parsed = raw; }
+        } else {
+          parsed = raw;
+        }
+      }
+      if (orderKeys && parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
         parsed = deepSort(parsed);
       }
       jsonStr = typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2);
+      if (usedMethod !== 'Sensor payload')
+        jsonStr = `// Decoded as: ${usedMethod}\n\n` + jsonStr;
 
     } else {
       // ── OB value ──
@@ -594,11 +702,20 @@ function updateOutput() {
   }
 }
 
+function updateTitleAndHeader() {
+  const isDecode = document.getElementById('mode').value === 'decode';
+  const titleText = isDecode ? 'Payload Decode' : 'Payload Deobfuscate';
+  document.title = titleText;
+  const hdr = document.getElementById('hdr-title');
+  if (hdr) hdr.textContent = titleText;
+}
+
 // ── Mode switch ───────────────────────────────────────
 document.getElementById('mode').addEventListener('change', () => {
   const isDecode = document.getElementById('mode').value === 'decode';
   document.getElementById('uuid-grp').style.display = isDecode ? '' : 'none';
   document.getElementById('sts-grp').style.display  = isDecode ? '' : 'none';
+  updateTitleAndHeader();
   updateOutput();
 });
 
@@ -654,6 +771,7 @@ function doShare() {
   document.getElementById('uuid-grp').style.display = isDecode ? '' : 'none';
   document.getElementById('sts-grp').style.display  = isDecode ? '' : 'none';
 
+  updateTitleAndHeader();
   updateOutput();
 })();
 </script>
